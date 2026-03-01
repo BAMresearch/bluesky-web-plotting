@@ -13,18 +13,49 @@ from bluesky_web_plots import WebPlotCallback
 EXAMPLE_MODE = os.getenv("BLUESKY_WEB_PLOTS_EXAMPLE_MODE", "0") == "1"
 
 
+def _start_proxy_and_dispatcher(exception_queue: Queue, in_port: int, out_port: int) -> None:
+    """Top-level so multiprocessing 'spawn' can pickle it on macOS."""
+    try:
+        proxy = Proxy(in_port=in_port, out_port=out_port)
+        proxy.start()
+    except Exception as e:
+        exception_queue.put(e)
+
+
+def _start_plotly_callback(exception_queue: Queue, zmq_uri: str, example_mode: bool) -> None:
+    """Top-level so multiprocessing spawn can pickle it."""
+    try:
+        callback = WebPlotCallback(zmq_uri=zmq_uri, local_window_mode=example_mode)
+
+        if example_mode:
+            if callback._local_window_process is None:
+                raise RuntimeError(
+                    "Example mode requested but local window process could not be created. "
+                    "Have you installed the local optional dependencies?"
+                )
+
+            def _wait_for_local_window_close(signum, frame):
+                assert callback._local_window_process is not None
+                while callback._local_window_process.is_alive():
+                    pass
+                raise SystemExit(0)
+
+            signal.signal(signal.SIGINT, _wait_for_local_window_close)
+
+        callback.run()
+    except Exception as e:
+        exception_queue.put(e)
+
+
 @pytest.fixture(scope="session")
 def zmq_proxy_subprocess():
     exception_queue = Queue()
 
-    def start_proxy_and_dispatcher():
-        try:
-            proxy = Proxy(in_port=5577, out_port=5578)
-            proxy.start()
-        except Exception as e:
-            exception_queue.put(e)
-
-    zmq_proxy = Process(target=start_proxy_and_dispatcher, daemon=True)
+    zmq_proxy = Process(
+        target=_start_proxy_and_dispatcher,
+        args=(exception_queue, 5577, 5578),
+        daemon=True,
+    )
     try:
         zmq_proxy.start()
         time.sleep(1)
@@ -65,7 +96,7 @@ def plot_subprocess():
     def start_plotly_callback():
         try:
             callback = WebPlotCallback(
-                zmq_uri="127.0.0.1:5578", local_window_mode=EXAMPLE_MODE
+                zmq_uri="tcp://127.0.0.1:5578", local_window_mode=EXAMPLE_MODE
             )
 
             def wait_for_local_window_close(signum, frame):
@@ -88,7 +119,12 @@ def plot_subprocess():
         except Exception as e:
             exception_queue.put(e)
 
-    zmq_callback = Process(target=start_plotly_callback)
+    zmq_callback = Process(
+        target=_start_plotly_callback,
+        args=(exception_queue, "tcp://127.0.0.1:5578", EXAMPLE_MODE),
+        daemon=True,
+    )
+
     try:
         zmq_callback.start()
         time.sleep(1)
