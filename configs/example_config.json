@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "app": {
+    "title": "Bluesky Run Browser",
+    "timezone": "UTC"
+  },
+  "sources": {
+    "live": {
+      "enabled": true,
+      "zmq_address": "tcp://localhost:5568",
+      "max_live_runs": 50,
+      "max_live_event_pages_per_stream": 200
+    },
+    "tiled": {
+      "enabled": true,
+      "uri": "http://localhost:8000",
+      "root": "runs",
+      "poll_interval_ms": 2000,
+      "lookback_hours": 48,
+      "include_incomplete": true
+    }
+  },
+  "timeline": {
+    "default_window_hours": 12,
+    "show": { "live": true, "tiled": true },
+    "track_order": ["primary", "baseline", "proposal"],
+    "clip": { "min_duration_ms": 5, "running_update_ms": 500 }
+  },
+  "tracks": [
+    {
+      "id": "primary",
+      "name": "Primary (by plan)",
+      "include_sources": ["tiled", "live"],
+      "require_streams": ["primary"],
+      "where": [],
+      "group_by": { "field": "start.plan_name", "fallback": "unknown_plan" },
+      "streams_hint": ["primary"],
+      "on_select": {
+        "left_panel": { "kind": "run_metadata" },
+        "right_panel": { "kind": "stream_plot", "stream": "primary" }
+      }
+    },
+    {
+      "id": "baseline",
+      "name": "Baseline (by plan)",
+      "require_streams": ["baseline"],
+      "where": [],
+      "group_by": { "field": "start.plan_name", "fallback": "unknown_plan" },
+      "streams_hint": ["baseline"]
+    },
+    {
+      "id": "proposal",
+      "name": "By proposal",
+      "where": [{ "field": "start.proposal_id", "op": "exists" }],
+      "group_by": { "field": "start.proposal_id", "fallback": "no_proposal" }
+    }
+  ],
+  "panels": {
+    "defaults": {
+      "left": { "kind": "summary" },
+      "right": { "kind": "stream_plot", "stream": "primary" }
+    }
+  }
+}
