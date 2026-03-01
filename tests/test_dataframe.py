@@ -69,7 +69,7 @@ def test_build_df_basic_grouping_and_duration():
     assert row["lane"] == "scan"
     assert row["status"] == "success"
     assert row["streams"] == "primary"
-    assert row["uid_mismatch"] is False
+    assert bool(row["uid_mismatch"]) is False
     assert pytest.approx(row["duration_s"], rel=1e-6) == (SAMPLE_MD["stop"]["time"] - SAMPLE_MD["start"]["time"])
 
 
@@ -154,4 +154,4 @@ def test_uid_mismatch_recorded():
     assert len(df) == 1
     row = df.iloc[0]
     assert row["start_uid"] == "start-uid"
-    assert row["uid_mismatch"] is True
+    assert bool(row["uid_mismatch"]) is True

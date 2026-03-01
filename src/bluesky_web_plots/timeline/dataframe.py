@@ -221,4 +221,5 @@ def build_timeline_df(
         return df
 
     df = df.sort_values(["lane", "t0", "uid"], ascending=[True, True, True]).reset_index(drop=True)
+    df["uid_mismatch"] = df["uid_mismatch"].astype(bool)
     return df
