@@ -30,12 +30,19 @@ GitHub = "https://github.com/evvaaaa"
 [[project.authors]]
 email = "eva.lott@helmholtz-berlin.de"
 name = "Eva Lott"
+
+[[project.authors]]
 email = "brian.pauw@bam.de"
 name = "Brian Richard Pauw"
 
 [project.optional-dependencies]
 local = ["PyQt5", "PyQtWebEngine"]
 dev = ["ruff", "pyright", "bluesky", "ophyd_async", "pytest-asyncio", "pytest"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
 
 [tool.setuptools_scm]
 version_file = "src/bluesky_web_plots/_version.py"
@@ -47,7 +54,5 @@ include-package-data = true
 [tool.setuptools.packages.find]
 where = ["src"]
 
-[tool.pytest.ini_options]
-asyncio_mode = "auto"
-testpaths = ["tests"]
-python_files = ["test_*.py"]
+[tool.setuptools.package-data]
+bluesky_web_plots = ["configs/*.json", "web_plots/*.svg", "web_plots/*.css", "web_plots/*.js"]
