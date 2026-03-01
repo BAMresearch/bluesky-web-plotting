@@ -4,19 +4,21 @@ build-backend = "setuptools.build_meta"
 
 [project]
 classifiers = [
-  "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
 ]
 name = "bluesky-web-plots"
 description = "Dash + plotly bluesky plotting sevice/callback."
 dependencies = [
   "uv",
   "plotly[express]",
-  "zmq",
+  "pyzmq",
   "event-model",
   "dash",
   "dash_bootstrap_components",
+  "attrs"
 ]
 dynamic = ["version"]
 readme = "README.md"
@@ -28,10 +30,19 @@ GitHub = "https://github.com/evvaaaa"
 [[project.authors]]
 email = "eva.lott@helmholtz-berlin.de"
 name = "Eva Lott"
+email = "brian.pauw@bam.de"
+name = "Brian Richard Pauw"
 
 [project.optional-dependencies]
 local = ["PyQt5", "PyQtWebEngine"]
-dev = ["ruff", "pyright", "bluesky", "ophyd_async", "pytest-asyncio"]
+dev = ["ruff", "pyright", "bluesky", "ophyd_async", "pytest-asyncio", "pytest"]
 
 [tool.setuptools_scm]
-version_file = "bluesky_web_plots/_version.py"
+version_file = "src/bluesky_web_plots/_version.py"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["src"]

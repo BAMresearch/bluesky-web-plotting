@@ -2,6 +2,13 @@
 
 A Dash + plotly bluesky plotting sevice/callback.
 
+This fork of the original repo is designed to experiment with a timeline interface, a la Final Cut Pro X. This is documented in the design documents. 
+
+The first design document is in [design_documentation/CONFIG_SPEC.md] and describes the behaviour and configruation structure of the timeline. 
+
+
+
+
 <img width="1675" height="1265" alt="local_window" src="https://github.com/user-attachments/assets/15bdb2d5-666c-4024-8105-b90d77df9bcc" />
 
 ## Running examples
