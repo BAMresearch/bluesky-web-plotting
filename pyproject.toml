@@ -19,7 +19,8 @@ dependencies = [
   "dash",
   "dash_bootstrap_components",
   "attrs",
-  "pandas"
+  "pandas",
+  "bluesky_tiled_plugins",
 ]
 dynamic = ["version"]
 readme = "README.md"
