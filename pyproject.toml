@@ -18,9 +18,6 @@ dependencies = [
   "event-model",
   "dash",
   "dash_bootstrap_components",
-  "attrs",
-  "pandas",
-  "bluesky_tiled_plugins",
 ]
 dynamic = ["version"]
 readme = "README.md"
@@ -39,6 +36,7 @@ name = "Brian Richard Pauw"
 
 [project.optional-dependencies]
 local = ["PyQt5", "PyQtWebEngine"]
+timeline = ["bluesky-tiled-plugins", "pandas", "attrs"]
 dev = ["ruff", "pyright", "bluesky", "ophyd_async", "pytest-asyncio", "pytest", "pre-commit"]
 
 [tool.pytest.ini_options]
