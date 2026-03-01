@@ -357,6 +357,10 @@ This spec allows either; choose one and document it in your implementation.
 
 ## 13. Selection behavior (`on_select`) and `panels`
 
+  - `on_select` determines what appears in the top panes when a clip becomes selected.
+  - It does not control the selection/cursor mechanics themselves.
+  - the UI expects the timeline figure to embed the run UID in a click-retrievable field (e.g. Plotly `customdata`)
+
 ### 13.1. `panels.defaults`
 
 ```json
@@ -412,6 +416,18 @@ A panel spec always has:
 - Shows an editor for the loaded JSON config (read/write UI is optional; may be read-only).
 - Keys:
   - `target` (string, optional): `"config"` (default)
+
+### 13.4 Runtime UI State (not configured)
+
+  - Selection is runtime state: selected_uid: `Optional[str]`
+  - Cursor/playhead is runtime state: cursor_time: `Optional[datetime]`
+  - Clicking a clip updates both:
+    - selected_uid becomes the clicked run UID
+    - cursor_time becomes the click x-position (fallback to `t0` if not available)
+  - The timeline figure will visually reflect:
+    - selection via a clip outline overlay
+    - cursor via a vertical line across all lanes + optional timestamp label
+  - These are stored/managed in the UI layer (Dash callbacks / `dcc.Store`), *not* in JSON config.
 
 ---
 
