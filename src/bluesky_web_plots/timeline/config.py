@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from enum import Enum
-from pathlib import Path
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any, Mapping, Optional
 
 import attrs
 from attrs import field
 
-from .predicates import ConfigError, Predicate, parse_predicate, _err
+from .predicates import AllPredicate, Predicate, parse_predicate, _err
 
 
 class SourceName(str, Enum):
@@ -305,7 +304,9 @@ class TrackConfig:
     include_sources: tuple[SourceName, ...] = field(factory=lambda: (SourceName.TILED, SourceName.LIVE))
     require_streams: tuple[str, ...] = field(factory=tuple)
 
-    where: Predicate = field(factory=lambda: parse_predicate([], path="tracks[].where"))  # overwritten in from_dict
+    where: Predicate = field(factory=lambda: AllPredicate(items=()))
+
+    #where: Predicate = field(factory=lambda: parse_predicate([], path="tracks[].where"))  # overwritten in from_dict
     group_by: Optional[GroupBy] = None
     label: Optional[LabelSpec] = None
     on_select: Optional[SelectionSpec] = None

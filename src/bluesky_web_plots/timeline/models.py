@@ -30,24 +30,21 @@ class RunEnvelope:
       - If t_stop is None: status should usually be RUNNING or INCOMPLETE/UNKNOWN
         (we enforce the first invariant strictly; the second is guidance)
     """
-
     uid: str
     t_start: datetime
     t_stop: Optional[datetime]
     status: RunStatus
     streams_present: set[str] = attrs.field(factory=set)
 
-    # Optional caches / metadata
     start_doc: Optional[Mapping[str, Any]] = None
     stop_doc: Optional[Mapping[str, Any]] = None
-
-    # Housekeeping
     updated_at: Optional[datetime] = None
 
-    @t_stop.validator
-    def _validate_stop_vs_status(self, _: Any, t_stop: Optional[datetime]) -> None:
-        if self.status == RunStatus.RUNNING and t_stop is not None:
+    def __attrs_post_init__(self) -> None:
+        # Cross-field invariant
+        if self.status == RunStatus.RUNNING and self.t_stop is not None:
             raise ValueError("RunEnvelope invariant violated: RUNNING run must have t_stop=None")
+
 
 
 @attrs.define(slots=True)

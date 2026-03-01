@@ -203,13 +203,21 @@ def parse_predicate(obj: Any, *, path: str) -> Predicate:
       - {"all": [ ... ]}
       - {"any": [ ... ]}
       - {"not": { ... }}
+
+    Convenience:
+      - [] means "no filter" (always true)
+      - [P1, P2, ...] means {"all": [P1, P2, ...]}
     """
     if obj is None:
-        # Treat null as "no filter" -> always true
         return AllPredicate(items=())
 
+    # convenience: list == implicit "all"
+    if isinstance(obj, list):
+        return AllPredicate(tuple(parse_predicate(x, path=f"{path}[{i}]") for i, x in enumerate(obj)))
+
     if not isinstance(obj, Mapping):
-        raise _err(path, "predicate must be an object")
+        raise _err(path, "predicate must be an object or a list")
+
 
     if "all" in obj:
         items = obj["all"]
