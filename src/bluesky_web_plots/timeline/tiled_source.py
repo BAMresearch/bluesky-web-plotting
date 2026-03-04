@@ -6,7 +6,7 @@ from typing import Any, Mapping, Optional
 
 import attrs
 
-from bluesky_tiled_plugins.queries import TimeRange  # server-side time filtering :contentReference[oaicite:2]{index=2}
+from tiled.queries import Key
 
 from .models import RunEnvelope, RunStatus, TimelineModel
 
@@ -46,19 +46,22 @@ class TiledSource:
         since = now - timedelta(hours=self.lookback_hours)
 
         try:
-            # Server-side query for time window
-            filtered = self.client.search(TimeRange(since=since.timestamp(), until=now.timestamp()))
-            # Mark healthy if query succeeds
-            model.health_tiled.connected = True
-            model.health_tiled.last_error = None
-            model.health_tiled.last_update_time = now
+            # Server-side query for time window using generic key predicates.
+            filtered = self.client.search(Key("start.time") >= since.timestamp()).search(
+                Key("start.time") <= now.timestamp()
+            )
+            uids = list(filtered.keys())
         except Exception as e:
             model.health_tiled.connected = False
             model.health_tiled.last_error = str(e)
             model.health_tiled.last_update_time = now
             return
 
-        for uid in filtered.keys():
+        model.health_tiled.connected = True
+        model.health_tiled.last_error = None
+        model.health_tiled.last_update_time = now
+
+        for uid in uids:
             run = filtered[uid]
             md = getattr(run, "metadata", {}) or {}
             start = md.get("start", {}) or {}

@@ -33,6 +33,7 @@ def test_make_timeline_figure_empty():
     fig = make_timeline_figure(pd.DataFrame(), title="X")
     assert fig is not None
     assert hasattr(fig, "to_dict")
+    assert fig.layout.uirevision == "timeline"
 
 
 def test_make_timeline_figure_selection_adds_shape():
@@ -50,3 +51,9 @@ def test_make_timeline_figure_cursor_adds_shape_and_annotation():
     assert len(fig.layout.shapes) >= 1
     assert fig.layout.annotations is not None
     assert len(fig.layout.annotations) >= 1
+
+
+def test_make_timeline_figure_sets_uirevision():
+    df = _df_one("u1")
+    fig = make_timeline_figure(df)
+    assert fig.layout.uirevision == "timeline"

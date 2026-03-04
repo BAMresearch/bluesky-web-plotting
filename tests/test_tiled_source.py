@@ -3,11 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-import pytest
-
 from bluesky_web_plots.timeline.models import TimelineModel, RunStatus
 from bluesky_web_plots.timeline.tiled_source import TiledSource
-from bluesky_tiled_plugins.queries import TimeRange
 
 class FakeRun:
     def __init__(self, metadata: dict, streams: list[str]):
@@ -21,10 +18,10 @@ class FakeRun:
 class FakeCatalog:
     def __init__(self, runs: dict[str, FakeRun]):
         self._runs = runs
-        self.last_query = None
+        self.queries: list[Any] = []
 
     def search(self, query: Any):
-        self.last_query = query
+        self.queries.append(query)
         # For unit tests we don't implement filtering logic; assume server did it.
         return self
 
@@ -74,7 +71,7 @@ def test_tiled_source_respects_include_incomplete_false():
     assert uid not in model.runs
 
 
-def test_tiled_source_calls_search_with_timerange():
+def test_tiled_source_calls_search_with_start_time_keys():
     uid = "u1"
     md = {
         "start": {"time": 1000.0, "uid": uid, "plan_name": "scan"},
@@ -86,13 +83,9 @@ def test_tiled_source_calls_search_with_timerange():
     src = TiledSource(client=cat, lookback_hours=48, include_incomplete=True)
     src.sync(model, now=_dt(2000.0))
 
-    assert cat.last_query is not None
-    q = cat.last_query
-    assert isinstance(q, TimeRange)
-    # Optional: only assert if attributes exist
-    if hasattr(q, "since") and hasattr(q, "until"):
-        assert q.since == pytest.approx(_dt(2000.0).timestamp() - 48 * 3600)
-        assert q.until == pytest.approx(_dt(2000.0).timestamp())
+    assert len(cat.queries) == 2
+    assert "start.time" in repr(cat.queries[0])
+    assert "start.time" in repr(cat.queries[1])
 
 
 def test_tiled_source_sync_handles_missing_stop_time_as_incomplete():

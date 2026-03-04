@@ -35,7 +35,13 @@ def make_timeline_layout() -> html.Div:
             # Stores for UI state
             dcc.Store(
                 id="timeline-ui-state",
-                data={"selected_uid": None, "cursor_time": None},
+                data={
+                    "selected_uid": None,
+                    "cursor_time": None,
+                    "xaxis_range_0": None,
+                    "xaxis_range_1": None,
+                    "pin_to_now": True,
+                },
             ),
             # Refresh timer
             dcc.Interval(id="timeline-refresh", interval=500, n_intervals=0),

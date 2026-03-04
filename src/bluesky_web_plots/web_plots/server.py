@@ -43,6 +43,43 @@ def _parse_cursor_time(x: Any) -> Optional[datetime]:
     return dt.astimezone(timezone.utc)
 
 
+def _parse_xaxis_range(relayout_data: Any) -> tuple[Optional[datetime], Optional[datetime]]:
+    """
+    Parse Plotly relayoutData into a UTC-aware (x0, x1) range.
+    """
+    if not isinstance(relayout_data, dict):
+        return None, None
+    if relayout_data.get("xaxis.autorange") is True:
+        return None, None
+
+    x0 = None
+    x1 = None
+    if isinstance(relayout_data.get("xaxis.range"), list) and len(relayout_data["xaxis.range"]) >= 2:
+        x0 = _parse_cursor_time(relayout_data["xaxis.range"][0])
+        x1 = _parse_cursor_time(relayout_data["xaxis.range"][1])
+        return x0, x1
+
+    x0 = _parse_cursor_time(relayout_data.get("xaxis.range[0]"))
+    x1 = _parse_cursor_time(relayout_data.get("xaxis.range[1]"))
+    return x0, x1
+
+
+def _should_pin_right_edge_to_now(
+    x0: Optional[datetime],
+    x1: Optional[datetime],
+    *,
+    now: datetime,
+) -> bool:
+    if x0 is None or x1 is None:
+        return False
+    span_s = (x1 - x0).total_seconds()
+    if span_s <= 0:
+        return False
+    threshold_s = min(300.0, max(10.0, span_s * 0.10))
+    delta_s = abs((now - x1).total_seconds())
+    return delta_s <= threshold_s
+
+
 class PlotServer:
     def __init__(self, host: str = "0.0.0.0", port: int = 8080, columns: int = 2) -> None:
         self.HOST = host
@@ -71,6 +108,28 @@ class PlotServer:
         """
         cfg = load_config(Path(config_path))
         self._timeline_controller = TimelineController(cfg=cfg, tiled_catalog=tiled_catalog)
+
+    def ingest_live_doc(self, name: str, doc: dict) -> None:
+        """
+        Feed live Bluesky documents into the timeline controller (thread-safe).
+        """
+        if self._timeline_controller is None:
+            return
+
+        with self._timeline_lock:
+            self._timeline_controller.live_engine.on_doc(name, doc)
+
+            # Provenance: mark as live unless already confirmed by tiled.
+            uid = None
+            if name == "start":
+                uid = doc.get("uid")
+            elif name in ("descriptor", "stop"):
+                uid = doc.get("run_start")
+
+            if uid is not None:
+                uid = str(uid)
+                if self._timeline_controller.source_for_uid.get(uid) != "tiled":
+                    self._timeline_controller.source_for_uid[uid] = "live"
 
     def add_widget(self, names: tuple[str, ...], figure: go.Figure) -> None:
         with self._lock:
@@ -277,6 +336,36 @@ class PlotServer:
             return ui_state
 
         @app.callback(
+            Output("timeline-ui-state", "data", allow_duplicate=True),
+            Input("timeline-graph", "relayoutData"),
+            State("timeline-ui-state", "data"),
+            prevent_initial_call=True,
+        )
+        def _on_timeline_relayout(relayout_data: Any, ui_state: dict):
+            ui_state = dict(ui_state or {})
+            now = datetime.now(timezone.utc)
+            if not isinstance(relayout_data, dict):
+                return no_update
+            relevant_keys = {"xaxis.autorange", "xaxis.range", "xaxis.range[0]", "xaxis.range[1]"}
+            if not any(k in relayout_data for k in relevant_keys):
+                return no_update
+
+            if relayout_data.get("xaxis.autorange") is True:
+                ui_state["xaxis_range_0"] = None
+                ui_state["xaxis_range_1"] = None
+                ui_state["pin_to_now"] = True
+                return ui_state
+
+            x0, x1 = _parse_xaxis_range(relayout_data)
+            if x0 is None or x1 is None:
+                return no_update
+
+            ui_state["xaxis_range_0"] = x0.isoformat()
+            ui_state["xaxis_range_1"] = x1.isoformat()
+            ui_state["pin_to_now"] = _should_pin_right_edge_to_now(x0, x1, now=now)
+            return ui_state
+
+        @app.callback(
             Output("timeline-graph", "figure"),
             Input("timeline-refresh", "n_intervals"),
             Input("timeline-source-toggles", "value"),
@@ -284,11 +373,19 @@ class PlotServer:
         )
         def _refresh_timeline(_: int, toggles: list[str], ui_state: dict):
             now = datetime.now(timezone.utc)
-
             show_sources = set(toggles or [])
             selected_uid = (ui_state or {}).get("selected_uid")
 
             cursor_time = _parse_cursor_time((ui_state or {}).get("cursor_time"))
+            x0 = _parse_cursor_time((ui_state or {}).get("xaxis_range_0"))
+            x1 = _parse_cursor_time((ui_state or {}).get("xaxis_range_1"))
+            if (ui_state or {}).get("pin_to_now"):
+                if x0 is not None and x1 is not None and x1 > x0:
+                    span_s = (x1 - x0).total_seconds()
+                else:
+                    span_s = controller.model.view.window_hours * 3600.0
+                x1 = now
+                x0 = datetime.fromtimestamp(now.timestamp() - span_s, tz=timezone.utc)
 
             with self._timeline_lock:
                 controller.tick(now=now)
@@ -298,7 +395,7 @@ class PlotServer:
                     window_hours=controller.model.view.window_hours,
                 )
 
-            return make_timeline_figure(
+            fig = make_timeline_figure(
                 df,
                 selected_uid=selected_uid,
                 cursor_time=cursor_time,
@@ -306,3 +403,6 @@ class PlotServer:
                 title="Beamline timeline",
                 show_legend=False,
             )
+            if x0 is not None and x1 is not None:
+                fig.update_xaxes(range=[x0, x1], autorange=False)
+            return fig

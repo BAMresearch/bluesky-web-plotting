@@ -43,6 +43,7 @@ def make_timeline_figure(
             xaxis_title="Time (UTC)",
             yaxis_title="",
             height=400,
+            uirevision="timeline",
         )
         return fig
 
@@ -107,6 +108,8 @@ def make_timeline_figure(
         hoverlabel=dict(namelength=-1),
         margin=dict(l=20, r=20, t=40, b=20),
         height=max(420, 140 + 35 * len(lane_order)),
+        # Preserve zoom and range-slider window across periodic refresh callbacks.
+        uirevision="timeline",
     )
 
     # Selection overlay: rectangle band around selected clip on its lane

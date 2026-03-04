@@ -2,6 +2,8 @@ import multiprocessing
 from pprint import pformat
 from queue import Queue
 from typing import cast
+from pathlib import Path
+import threading
 
 from bluesky.callbacks.zmq import RemoteDispatcher
 from event_model import RunStop
@@ -28,16 +30,22 @@ from bluesky_web_plots.utils import hinted_fields
 
 from .server import PlotServer
 
+from tiled.client import from_uri
+from bluesky_web_plots.timeline.io import load_config
+
 
 class WebPlotCallback:
     def __init__(
         self,
         zmq_uri: str | None = None,
-        plot_host: str = "0.0.0.0",
+        plot_host: str = "127.0.0.1",
         plot_port=12354,
         columns=3,
         local_window_mode: bool = False,
         ignore_streams: tuple[str, ...] = (),
+        timeline_config: str | None = None,
+        tiled_uri: str | None = None,
+        tiled_api_key: str | None = None,
     ):
         """A callback for plotting event document output through the web, with either simple,
         or complicated structures.
@@ -91,6 +99,17 @@ class WebPlotCallback:
         self._IGNORE_STREAMS = ignore_streams  # Streams to ignore.
         self._ignore_descriptors = set()  # Desscriptor uids to ignore.
 
+        # timeline code:
+        self._timeline_enabled = False
+        if timeline_config:
+            cfg = load_config(Path(timeline_config))
+            uri = tiled_uri or cfg.sources.tiled.uri
+            if not uri:
+                raise ValueError("Timeline enabled but no tiled URI provided (config or --tiled-uri).")
+            tiled_catalog = from_uri(uri, api_key=tiled_api_key)
+            self._server.enable_timeline(config_path=timeline_config, tiled_catalog=tiled_catalog)
+            self._timeline_enabled = True
+
         # local_window_mode creates a local window pyqt window in a subprocess to view your plot.
         # A new one is made for each run whenever it's closed, mimicking best effort callback
         # and not relying on the browser process which may be slow from an abundance
@@ -143,12 +162,19 @@ class WebPlotCallback:
         app.exec_()
 
     def run(self):
-        """Runs the callback as a service listening to ZMQ for event documents."""
+        """Runs the callback as a service listening to ZMQ for event documents.
 
+        If ZMQ_URI is None, run the UI only (Tiled-only timeline, or empty plots).
+        """
         if self.ZMQ_URI is None:
-            raise ValueError(
-                "Cannot run as a service as the ZMQ host or port was not provided on init."
-            )
+            logger.info("No ZMQ URI provided. Running UI-only mode (no live documents).")
+            # Keep process alive so the Dash thread stays up
+            try:
+                while True:
+                    threading.Event().wait(3600)
+            except KeyboardInterrupt:
+                print("Exiting...")
+            return
 
         remote_dispatcher = RemoteDispatcher(self.ZMQ_URI)
         remote_dispatcher.subscribe(self)
@@ -170,12 +196,21 @@ class WebPlotCallback:
         ):
             self._local_window_process.start()
 
+        # NEW: feed timeline
+        if self._timeline_enabled:
+            self._server.ingest_live_doc(name, dict(document))
+
+        # Existing plotting routes (use elif to avoid double-work)
         if name == "start":
             self.run_start(cast(RunStart, document))
-        if name == "descriptor":
+        elif name == "descriptor":
             self.descriptor(cast(EventDescriptor, document))
-        if name == "event":
+        elif name == "event":
             self.event(cast(Event, document))
+        elif name == "event_page":
+            self.event_page(cast(EventPage, document))
+        elif name == "stop":
+            self.run_stop(cast(RunStop, document))
 
     def run_start(self, run_start: RunStart):
         # The figures are all on the other thread. We can dereference here.
@@ -249,7 +284,7 @@ class WebPlotCallback:
             self._ignore_descriptors.add(descriptor["uid"])
 
         plotted_fields = hinted_fields(descriptor) + [
-            field for field in "data_keys" if field in self._structures
+            field for field in descriptor.get("data_keys", {}) if frozenset((field,)) in self._structures
         ]
         for name in plotted_fields:
             names = (name,)
@@ -272,7 +307,7 @@ class WebPlotCallback:
         if event["descriptor"] in self._ignore_descriptors:
             return
 
-        datakeys = frozenset((event["data"].keys()))
+        datakeys = frozenset(event["data"].keys())
         for names, figure in self._figures.items():
             if set(names) <= datakeys:
                 figure.event(event)

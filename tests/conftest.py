@@ -74,7 +74,7 @@ def zmq_proxy_subprocess():
 @pytest.fixture(scope="function")
 def zmq_proxy_run_engine(zmq_proxy_subprocess):
     RE = RunEngine()
-    publisher = Publisher(address="127.0.0.1:5577")
+    publisher = Publisher(address="0.0.0.0:5577")
     RE.subscribe(publisher)
     try:
         yield RE
